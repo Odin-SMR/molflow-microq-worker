@@ -1,0 +1,16 @@
+{
+  "linters": {
+    "python": {
+      "type": "pep8",
+      "include": "(\\.py$)"
+    },
+    "xml": {
+      "type": "xml",
+      "include": "(\\.xml$)"
+    },
+    "jshint": {
+      "type": "jshint",
+      "include": "(\\.js$)"
+    }
+  }
+}

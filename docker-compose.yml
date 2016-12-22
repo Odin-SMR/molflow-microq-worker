@@ -1,0 +1,29 @@
+#postgresql:
+#  image: docker2.molflow.com/odin_redo/odin_db:latest
+#  ports:
+#    - 5432:5432
+#  environment:
+#    - POSTGRES_PASSWORD:test
+
+webapi:
+  image: docker2.molflow.com/odin/microq:latest
+  ports:
+    - 5000:5000
+  environment:
+    - USERVICE_DATABASE_URI=mysql+pymysql://testuser:secret@mysqlhost/smr
+    - USERVICE_ADMIN_USER=admin
+    - USERVICE_ADMIN_PASSWORD=sqrrl
+  volumes:
+    - ./src/:/app
+  links:
+    - mysqlhost
+
+mysqlhost:
+  image: docker2.molflow.com/devops/hermod_mysql
+  environment:
+    - MYSQL_ROOT_PASSWORD=empty
+    - MYSQL_DATABASE=smr
+    - MYSQL_USER=testuser
+    - MYSQL_PASSWORD=secret
+  ports:
+    - localhost:3306:3306
