@@ -10,7 +10,7 @@ from werkzeug.serving import BaseWSGIServer, WSGIRequestHandler
 from werkzeug.wrappers import Request, Response
 
 from test.testbase import (
-    BaseWithWorkerUser, TEST_DATA_DIR, disable, slow, system)
+    BaseWithWorkerUser, TEST_DATA_DIR, slow, system)
 
 from utils.defs import JOB_STATES
 from utils import logs
@@ -41,23 +41,24 @@ class BaseUWorkerTest(BaseWithWorkerUser):
         docker_util.in_docker = self.orig_in_docker
         self._delete_test_project()
 
-    def _test_bad_config(self):
+    def _test_bad_config(self, with_command=True):
         optional = ['UWORKER_EXTERNAL_API_USERNAME',
-                    'UWORKER_EXTERNAL_API_PASSWORD']
+                    'UWORKER_EXTERNAL_API_PASSWORD',
+                    'UWORKER_JOB_TIMEOUT']
         for k in self.env:
             v = os.environ.pop(k)
             if k in optional:
-                uworker.UWorker()
+                uworker.UWorker(with_command=with_command)
             else:
                 print('Mandatory: %s' % k)
                 with self.assertRaises(uworker.UWorkerError):
                     uworker.UWorker()
             os.environ[k] = v
 
-    def _run_once(self, expected_jobs_count=0):
+    def _run_once(self, expected_jobs_count=0, with_command=True):
         uworker.UWorker.IDLE_SLEEP = .01
         uworker.UWorker.ERROR_SLEEP = .01
-        w = uworker.UWorker()
+        w = uworker.UWorker(with_command=with_command)
         w.alive = True
         self.assertEqual(w.job_count, 0)
         w.run(only_once=True)
@@ -65,19 +66,16 @@ class BaseUWorkerTest(BaseWithWorkerUser):
         # TODO: Check that result and output from job were stored.
 
 
-@disable
 @system
 @pytest.mark.usefixtures("dockercompose")
-class TestUWorkerInDocker(BaseUWorkerTest):
-    """Test worker that is running in a docker container"""
+class TestUWorkerWithCommand(BaseUWorkerTest):
+    """Test worker that is running with a command"""
 
-    in_docker = True
+    in_docker = False
 
     @property
     def env(self):
         return {
-            'UWORKER_HOSTNAME': 'testhost',
-            'HOSTNAME': 'testcontainer',
             'UWORKER_JOB_CMD': 'echo test',
             'UWORKER_JOB_TYPE': 'test',
             'UWORKER_JOB_API_ROOT': self._apiroot,
@@ -116,8 +114,8 @@ class TestUWorkerInDocker(BaseUWorkerTest):
 
 @system
 @pytest.mark.usefixtures("dockercompose")
-class TestUWorkerOnHost(BaseUWorkerTest):
-    """Test worker that is running on the host"""
+class TestUWorkerNoCommand(BaseUWorkerTest):
+    """Test worker that is running without a command"""
 
     in_docker = False
 
@@ -130,7 +128,6 @@ class TestUWorkerOnHost(BaseUWorkerTest):
     @property
     def env(self):
         return {
-            'HOSTNAME': 'testcontainer',
             'UWORKER_JOB_API_ROOT': self._apiroot,
             'UWORKER_JOB_API_USERNAME': self._token,
             'UWORKER_JOB_API_PASSWORD': "",
@@ -139,7 +136,7 @@ class TestUWorkerOnHost(BaseUWorkerTest):
         }
 
     def setUp(self):
-        super(TestUWorkerOnHost, self).setUp()
+        super(TestUWorkerNoCommand, self).setUp()
         r = requests.put(
             BaseWithWorkerUser._apiroot + '/v4/' + BaseWithWorkerUser._project,
             auth=self._auth, json={'processing_image_url': TEST_IMAGE})
@@ -147,11 +144,11 @@ class TestUWorkerOnHost(BaseUWorkerTest):
 
     def test_bad_config(self):
         """Test missing environment variables"""
-        self._test_bad_config()
+        self._test_bad_config(with_command=False)
 
     def test_run(self):
         """Test one worker run"""
-        self._run_once(expected_jobs_count=1)
+        self._run_once(expected_jobs_count=1, with_command=False)
 
     def test_exit_code(self):
         """Test job command that return failure"""
@@ -160,8 +157,8 @@ class TestUWorkerOnHost(BaseUWorkerTest):
             'source_url': 'ls test_exit_code',
             'target_url': BaseUWorkerTest.TEST_URL}
         self.assertEqual(self._insert_job(error_job), 201)
-        self._run_once(expected_jobs_count=1)
-        self._run_once(expected_jobs_count=1)
+        self._run_once(expected_jobs_count=1, with_command=False)
+        self._run_once(expected_jobs_count=1, with_command=False)
 
 
 class BaseExecutorTest(unittest.TestCase):
@@ -245,7 +242,7 @@ class TestDockerExecutor(BaseExecutorTest):
 @system
 @pytest.mark.usefixtures("dockercompose")
 @unittest.skipIf(not in_docker(),
-                 'Must be run in a container with a running uworker')
+                 'Must be run in a qsmr container with a running uworker')
 class TestQsmrJob(BaseWithWorkerUser):
     JOB_ID = '42'
     _apiroot = 'http://webapi:5000/rest_api'

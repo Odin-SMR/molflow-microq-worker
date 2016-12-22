@@ -4,4 +4,5 @@
 
 set -e
 
-echo "empty build"
+docker build -t docker2.molflow.com/devops/uworker .
+docker push docker2.molflow.com/devops/uworker

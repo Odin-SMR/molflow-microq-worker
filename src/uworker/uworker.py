@@ -5,28 +5,33 @@ Worker that performs jobs provided by a uservice api.
  |Job API| <------> |Worker| - <Command> <------> |External API|
  ---------          --------                      --------------
 
-The worker can run on the host or in a docker image.
-In both cases the root url and credentials to the job api must be available
-as environment variables.
+The worker can be started with our without a command. The default mode is
+with a command. In both cases the root url and credentials to the job api
+must be available as environment variables.
 
-Worker on host
---------------
-
-The worker asks the job api for a job from any project (the job api prioritize
-the projects).
-The jobs must include an url to a docker image that the worker pulls.
-
-Worker in docker image
-----------------------
+Worker with command
+-------------------
 
 The worker asks the job api for a job from a certain project.
 The project and the command that should be executed for all the jobs in the
-project are provided to the docker container as environment variables.
+project are provided as environment variables.
+
+Worker without command
+----------------------
+
+When the worker is started without a job command it runs in docker execution
+mode, which means that the jobs must provide a docker image url that the worker
+runs to process the jobs.
+
+The worker will ask the job api for a job from any project (the job api
+prioritize the projects). The worker pulls the image and processes the job by
+running a docker container.
 """
 
 import os
 import errno
-from sys import exit
+import sys
+import socket
 import signal
 import subprocess
 import argparse
@@ -48,29 +53,19 @@ GENERAL_CONFIG = {
     'external_password': ('UWORKER_EXTERNAL_API_PASSWORD', False)
 }
 
-IN_DOCKER_CONFIG = {
-    'container_id': ('HOSTNAME', True),
-    # Set by start script
-    'hostname': ('UWORKER_HOSTNAME', True),
-    # Set by Dockerfile
+WITH_COMMAND_CONFIG = {
+    'api_project': ('UWORKER_JOB_API_PROJECT', True),
     'job_command': ('UWORKER_JOB_CMD', True),
     'job_type': ('UWORKER_JOB_TYPE', True),
     'job_timeout': ('UWORKER_JOB_TIMEOUT', False),
-    'api_project': ('UWORKER_JOB_API_PROJECT', True),
-}
-
-ON_HOST_CONFIG = {
-    'hostname': ('HOSTNAME', True)
 }
 
 
-def get_config(in_docker):
+def get_config(with_command):
     """Create config dict from environment variables"""
     conf = GENERAL_CONFIG.copy()
-    if in_docker:
-        conf.update(IN_DOCKER_CONFIG)
-    else:
-        conf.update(ON_HOST_CONFIG)
+    if with_command:
+        conf.update(WITH_COMMAND_CONFIG)
     loaded_conf = {}
     for key, (env, required) in conf.items():
         if required:
@@ -116,23 +111,28 @@ class UWorker(object):
     # Sleep this many seconds if something unexpected goes wrong
     ERROR_SLEEP = 10
 
-    def __init__(self, start_service=False):
-        self.in_docker = docker_util.in_docker()
+    def __init__(self, start_service=False, with_command=True):
+        if not with_command:
+            if docker_util.in_docker():
+                raise UWorkerError(
+                    'Cannot start worker in docker container without a command'
+                )
+            if not docker_util.docker_available():
+                raise UWorkerError('The docker daemon is not available')
         try:
-            config = get_config(self.in_docker)
+            config = get_config(with_command)
         except KeyError as e:
             raise UWorkerError('Missing config value: %s' % e)
         self.name = '{class_name}_{host}'.format(
             class_name=self.__class__.__name__,
-            host=config['hostname'])
+            host=socket.gethostname())
         self.log = get_logger(
             self.name, to_file=start_service, to_stdout=True)
         self.job_count = 0
         self.log_config(config)
         self.project = self.job_type = self.job_timeout = self.cmd = None
 
-        if self.in_docker:
-            self.name += '_' + config['container_id']
+        if with_command:
             self.project = config['api_project']
             self.cmd = config['job_command']
             self.job_type = config['job_type']
@@ -166,6 +166,11 @@ class UWorker(object):
                 job = Job.fetch(
                     self.api, job_type=self.job_type, project=self.project)
                 if not job:
+                    sleep(self.IDLE_SLEEP)
+                elif job.url_image and self.cmd:
+                    self.log.warning(
+                        'Got job with docker image (%r) but the worker is '
+                        'configured with a command!' % job.url_image)
                     sleep(self.IDLE_SLEEP)
                 elif self.claim_job(job):
                     job.send_status(JOB_STATES.started)
@@ -214,15 +219,16 @@ class UWorker(object):
                     self.log.exception(
                         'Exception when sending output to job api:')
 
-        self.log.info('Starting job: %s' % args)
+        self.log.info('Creating job executor: %s' % args)
         # TODO: Add support for letting a job override the configured timeout
         if url_image:
-            assert not self.in_docker
+            assert not self.cmd
             executor = DockerExecutor(
                 'Job', url_image, self.log, environment=environment)
         else:
-            assert self.in_docker
             executor = CommandExecutor('Job', self.cmd, self.log)
+
+        executor.write_output('Starting execution')
 
         exit_code, processing_time = executor.execute(
             args, output_callback, timeout=self.job_timeout)
@@ -249,6 +255,7 @@ class CommandExecutor(object):
         self.cmd = cmd
         self.process_name = name
         self.log = log
+        self.output = BytesIO()
         self.output_lock = Lock()
 
     def execute(self, command_args, output_callback, timeout=None,
@@ -279,28 +286,27 @@ class CommandExecutor(object):
         self.log.info('{} process started with pid {}: {}'.format(
             self.process_name, popen.pid, cmd))
 
-        output = BytesIO()
-        self._handle_output(popen, output, output_callback)
+        self._handle_output(popen, output_callback)
         exit_code, killed = self._wait_for_exit(popen)
         processing_time = time() - start_time
 
         if timeout and killed:
             msg = ('Killed {} process after timeout of {} seconds'
                    '').format(self.process_name, timeout)
-            self._write_output('executor', msg + '\n', output)
+            self.write_output(msg)
             self.log.warning(msg)
 
         msg = '{} process exited with code {}'.format(
             self.process_name, exit_code)
-        self._write_output('executor', msg + '\n', output)
-        output_callback(output.getvalue())
+        self.write_output(msg)
+        output_callback(self.output.getvalue())
         if exit_code != 0:
             self.log.warning(msg)
         else:
             self.log.info(msg)
         return exit_code, processing_time
 
-    def _handle_output(self, popen, out_buffer, out_callback):
+    def _handle_output(self, popen, out_callback):
         """Start threads that feed the stdout/stderr streams from the
         subprocess to the callback function.
         """
@@ -308,22 +314,22 @@ class CommandExecutor(object):
         stderr_lines = iter(popen.stderr.readline, "")
 
         t_stdout = Thread(target=self._read_lines, args=(
-            'stdout', stdout_lines, out_buffer, out_callback))
+            'stdout', stdout_lines, out_callback))
         t_stderr = Thread(target=self._read_lines, args=(
-            'stderr', stderr_lines, out_buffer, out_callback))
+            'stderr', stderr_lines, out_callback))
         t_stdout.start()
         t_stderr.start()
         return t_stdout, t_stderr
 
-    def _read_lines(self, stream_name, lines, out_buffer, out_callback):
+    def _read_lines(self, stream_name, lines, out_callback):
         """Read stream from subprocess and feed to log and callback function"""
         last_callback = 0
         callback_interval = 5
         for line in lines:
             with self.output_lock:
-                self._write_output(stream_name, line, out_buffer)
+                self._write_output(stream_name, line)
                 if time() - last_callback > callback_interval:
-                    out_callback(out_buffer.getvalue())
+                    out_callback(self.output.getvalue())
                     last_callback = time()
             if line.strip():
                 self.log.info(
@@ -377,9 +383,11 @@ class CommandExecutor(object):
                 return
             raise
 
-    @staticmethod
-    def _write_output(stream_name, msg, output):
-        output.write('%s - %s: %s' % (
+    def write_output(self, msg):
+        self._write_output('executor', msg + '\n')
+
+    def _write_output(self, stream_name, msg):
+        self.output.write('%s - %s: %s' % (
             datetime.utcnow().isoformat(), stream_name.upper(), msg))
 
 
@@ -452,6 +460,9 @@ def get_argparser():
     parser.add_argument(
         'INPUT_DATA_URL', nargs='?',
         help='If provided, run job command on this input url and exit.')
+    parser.add_argument(
+        '--no-command', action='store_true',
+        help="Start Uworker service in docker execution mode.")
     return parser
 
 
@@ -459,16 +470,18 @@ def main(args=None):
     parser = get_argparser()
     args = parser.parse_args(args)
     if args.INPUT_DATA_URL:
-        if not docker_util.in_docker():
+        if args.no_command:
             # TODO: Add support for giving a processing image url via command
             #       line.
-            print('Cannot run job outside of docker')
+            print('Cannot run job without a command')
             return 1
-        worker = UWorker()
+        worker = UWorker(with_command=True)
         return worker.do_job(args.INPUT_DATA_URL)
     else:
         print('Spawning worker')
-        UWorker(start_service=True)
+        UWorker(start_service=True, with_command=not args.no_command)
+    return 0
+
 
 if __name__ == '__main__':
-    exit(main())
+    sys.exit(main())

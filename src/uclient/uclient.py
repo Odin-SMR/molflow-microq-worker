@@ -132,17 +132,17 @@ class UClient(object):
         """
         if auth is None:
             auth = self.auth
-        response = None
+        response = err = None
         for _ in range(self.retries):
             try:
                 response = getattr(
                     requests, method.lower())(url, auth=auth, **kwargs)
                 break
-            except Exception as e:
+            except Exception as err:
                 # TODO: log exception
                 sleep(self.time_between_retries)
         if response is None:
-            raise UClientError('API call to %r failed: %s' % (url, e))
+            raise UClientError('API call to %r failed: %s' % (url, err))
         if self.verbose:
             print(response.text)
         if renew_token and response.status_code == 401:

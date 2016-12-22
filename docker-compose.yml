@@ -13,8 +13,6 @@ webapi:
     - USERVICE_DATABASE_URI=mysql+pymysql://testuser:secret@mysqlhost/smr
     - USERVICE_ADMIN_USER=admin
     - USERVICE_ADMIN_PASSWORD=sqrrl
-  volumes:
-    - ./src/:/app
   links:
     - mysqlhost
 
