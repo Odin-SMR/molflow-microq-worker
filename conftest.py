@@ -52,7 +52,7 @@ def dockercompose():
         try:
             r = requests.get(
                 'http://localhost:5000/rest_api/v4/projects',
-                timeout=1)
+                timeout=5)
             if r.status_code == 200:
                 break
             else:

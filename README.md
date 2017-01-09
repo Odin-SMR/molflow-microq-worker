@@ -5,9 +5,9 @@ The worker is an application that processes jobs provided by the microq api.
 The worker needs these environment variables to be able to communicate with the
 api:
 
-    UWORKER_JOB_API_ROOT=https://example.com/rest_api
-    UWORKER_JOB_API_USERNAME=<username>
-    UWORKER_JOB_API_PASSWORD=<password>
+    export UWORKER_JOB_API_ROOT=https://example.com/rest_api
+    export UWORKER_JOB_API_USERNAME=<username>
+    export UWORKER_JOB_API_PASSWORD=<password>
 
 The environment could for example be provided by adding the variables to a
 config file and then source that file before starting the worker:
@@ -38,8 +38,8 @@ The worker must be provided with a project name and a command to run for the
 jobs that belong to that project. Add these environment variables to the config
 file:
 
-    UWORKER_JOB_API_PROJECT=<project_name>
-    UWORKER_JOB_CMD=<job command to execute>
+    export UWORKER_JOB_API_PROJECT=<project_name>
+    export UWORKER_JOB_CMD=<job command to execute>
 
 The job command must be available on the computer that the worker is running on.
 

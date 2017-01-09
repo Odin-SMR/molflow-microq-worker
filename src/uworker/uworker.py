@@ -56,7 +56,7 @@ GENERAL_CONFIG = {
 WITH_COMMAND_CONFIG = {
     'api_project': ('UWORKER_JOB_API_PROJECT', True),
     'job_command': ('UWORKER_JOB_CMD', True),
-    'job_type': ('UWORKER_JOB_TYPE', True),
+    'job_type': ('UWORKER_JOB_TYPE', False),
     'job_timeout': ('UWORKER_JOB_TIMEOUT', False),
 }
 
@@ -127,7 +127,7 @@ class UWorker(object):
             class_name=self.__class__.__name__,
             host=socket.gethostname())
         self.log = get_logger(
-            self.name, to_file=start_service, to_stdout=True)
+            self.name, to_file=False, to_stdout=True)
         self.job_count = 0
         self.log_config(config)
         self.project = self.job_type = self.job_timeout = self.cmd = None
@@ -135,7 +135,7 @@ class UWorker(object):
         if with_command:
             self.project = config['api_project']
             self.cmd = config['job_command']
-            self.job_type = config['job_type']
+            self.job_type = config.get('job_type')
             self.job_timeout = config['job_timeout']
             if self.job_timeout:
                 self.job_timeout = int(self.job_timeout)
@@ -166,6 +166,7 @@ class UWorker(object):
                 job = Job.fetch(
                     self.api, job_type=self.job_type, project=self.project)
                 if not job:
+                    self.log.info('Idle...')
                     sleep(self.IDLE_SLEEP)
                 elif job.url_image and self.cmd:
                     self.log.warning(

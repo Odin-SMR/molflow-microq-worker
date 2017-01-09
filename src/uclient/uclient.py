@@ -102,7 +102,11 @@ class UClient(object):
             url = self.uri + '/v4/projects/jobs/fetch'
         if job_type:
             url += '?{}'.format(urllib.urlencode({'type': job_type}))
-        return self._call_api(url)
+        try:
+            return self._call_api(url)
+        except UClientError as err:
+            if err.status_code != 404:
+                raise
 
     def claim_job(self, url, worker_name):
         """Claim job from server"""
@@ -176,8 +180,9 @@ class Job(object):
 
     @classmethod
     def fetch(cls, api, job_type=None, project=None):
-        r = api.fetch_job(job_type=job_type, project=project)
-        return cls(r.json(), api)
+        resp = api.fetch_job(job_type=job_type, project=project)
+        if resp:
+            return cls(resp.json(), api)
 
     @property
     def url_claim(self):

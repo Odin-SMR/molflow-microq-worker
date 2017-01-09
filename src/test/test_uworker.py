@@ -44,7 +44,8 @@ class BaseUWorkerTest(BaseWithWorkerUser):
     def _test_bad_config(self, with_command=True):
         optional = ['UWORKER_EXTERNAL_API_USERNAME',
                     'UWORKER_EXTERNAL_API_PASSWORD',
-                    'UWORKER_JOB_TIMEOUT']
+                    'UWORKER_JOB_TIMEOUT',
+                    'UWORKER_JOB_TYPE']
         for k in self.env:
             v = os.environ.pop(k)
             if k in optional:
