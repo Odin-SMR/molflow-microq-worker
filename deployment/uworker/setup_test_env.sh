@@ -40,7 +40,7 @@ fix_uworker_conf() {
 
     sed -i -e "s@.*UWORKER_JOB_API_ROOT.*@export UWORKER_JOB_API_ROOT=${api_root}@" /root/uworker.conf
     sed -i -e "s/.*UWORKER_JOB_API_USERNAME.*/export UWORKER_JOB_API_USERNAME=${username}/" /root/uworker.conf
-    sed -i -e "s/.*UWORKER_JOB_API_PASSWORD.*/export UWORKER_JOB_API_PASSWORD=${password}/" /root/uworker.conf    
+    sed -i -e "s/.*UWORKER_JOB_API_PASSWORD.*/export UWORKER_JOB_API_PASSWORD=${password}/" /root/uworker.conf
 }
 
 fix_uworker_start_script() {
