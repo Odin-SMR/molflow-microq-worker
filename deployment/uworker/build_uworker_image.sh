@@ -3,9 +3,9 @@
 set -e
 
 if [[ -z $OS_PASSWORD ]]; then
-    source c2016005-openrc.sh
+    source 'SNIC 2017_13-7-openrc_v3.sh'
+    source 'packer_openstack_v3.sh'
 fi
-export OS_DOMAIN_NAME=Default
 tar -zcvf microq.tar.gz ../../src
 
 if [[ $1 == validate ]]; then
