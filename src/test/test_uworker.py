@@ -181,6 +181,8 @@ class TestCommandExecutor(BaseExecutorTest):
         ce = uworker.CommandExecutor('Test', ['echo'], self.log)
         return_code, _ = ce.execute(['test_execute_success'],
                                     self.callback)
+        # The callback is in thread, need time to complete
+        sleep(1)
         self.assertEqual(return_code, 0)
         self.assertTrue('test_execute_success' in self.callback.last_message)
 
@@ -196,6 +198,8 @@ class TestCommandExecutor(BaseExecutorTest):
         ce = uworker.CommandExecutor('Test', ['sleep'], self.log)
         return_code, _ = ce.execute(['5'],
                                     self.callback, timeout=1, kill_after=1)
+        # The callback is in thread, need time to complete
+        sleep(1)
         self.assertNotEqual(return_code, 0)
         self.assertTrue('Killed Test process' in self.callback.last_message)
 
@@ -210,6 +214,8 @@ class TestDockerExecutor(BaseExecutorTest):
             ce = uworker.CommandExecutor('Remove image', ['docker', 'rmi'],
                                          self.log)
             ce.execute([TEST_IMAGE], self.callback)
+        # The callback is in thread, need time to complete
+        sleep(1)
         self.assertFalse(de.image_exists())
         de.pull_image(self.callback)
         self.assertTrue(de.image_exists())
@@ -219,6 +225,8 @@ class TestDockerExecutor(BaseExecutorTest):
         de = uworker.DockerExecutor('Test', TEST_IMAGE, self.log)
         return_code, _ = de.execute(['echo', 'test_execute_success'],
                                     self.callback)
+        # The callback is in thread, need time to complete
+        sleep(1)
         self.assertEqual(return_code, 0)
         self.assertTrue('test_execute_success' in self.callback.last_message)
 
@@ -228,6 +236,8 @@ class TestDockerExecutor(BaseExecutorTest):
             'Test', TEST_IMAGE, self.log,
             environment={'TESTENV': 'test_environment_variables'})
         return_code, _ = de.execute(['env'], self.callback)
+        # The callback is in thread, need time to complete
+        sleep(1)
         self.assertEqual(return_code, 0)
         self.assertTrue(
             'test_environment_variables' in self.callback.last_message)

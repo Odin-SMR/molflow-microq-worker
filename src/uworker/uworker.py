@@ -142,8 +142,7 @@ class UWorker(object):
 
         self.api = UClient(config['api_root'],
                            username=config['api_username'],
-                           password=config['api_password'],
-                           time_between_retries=self.ERROR_SLEEP)
+                           password=config['api_password'])
         self.external_auth = (config['external_username'],
                               config['external_password'])
         if start_service:

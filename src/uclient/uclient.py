@@ -3,6 +3,7 @@ import urllib
 from time import sleep
 import requests
 
+from utils.logs import get_logger
 from utils.validate import validate_project_name
 
 
@@ -21,10 +22,11 @@ class UClient(object):
 
     The client is mostly adapted to suit the needs of uworker.
     """
+    logger = get_logger("UClient", to_file=False, to_stdout=True)
 
     def __init__(self, apiroot, username=None, password=None,
                  credentials_file=None, verbose=False, retries=5,
-                 time_between_retries=60):
+                 time_between_retries=None):
         """
         Init the api client.
 
@@ -48,7 +50,10 @@ class UClient(object):
             username, password, credentials_file)
         self.token = None
         self.retries = retries
-        self.time_between_retries = time_between_retries
+        if time_between_retries is None:
+            self.time_between_retries = [pow(3, v) for v in range(retries)]
+        else:
+            self.time_between_retries = [time_between_retries] * retries
 
     def get_project_uri(self, project):
         if not validate_project_name(project):
@@ -122,8 +127,11 @@ class UClient(object):
         """Update status of job."""
         data = {'Status': status,
                 'ProcessingTime': processing_time}
-        return self._call_api(url, 'PUT', json=data,
-                              headers={'Content-Type': "application/json"})
+        return self._call_api(
+            url, 'PUT',
+            json=data,
+            headers={'Content-Type': "application/json"}
+        )
 
     def _call_api(self, url, method='GET', renew_token=True, auth=None,
                   **kwargs):
@@ -137,14 +145,24 @@ class UClient(object):
         if auth is None:
             auth = self.auth
         response = err = None
-        for _ in range(self.retries):
+        is_retry = False
+        retries = self.retries
+
+        for attempt in range(retries + 1):
+
+            if is_retry:
+                sleep(self.time_between_retries[attempt - 1])
+
             try:
                 response = getattr(
                     requests, method.lower())(url, auth=auth, **kwargs)
                 break
             except Exception as err:
-                # TODO: log exception
-                sleep(self.time_between_retries)
+                self.logger.warning(
+                    "Request to {0} raised {3} (attempt {1}/{2})".format(
+                        url, attempt + 1, retries + 1, err))
+                is_retry = True
+
         if response is None:
             raise UClientError('API call to %r failed: %s' % (url, err))
         if self.verbose:
@@ -167,6 +185,7 @@ class UClient(object):
 
 
 class Job(object):
+
     def __init__(self, data, api):
         """Init a job.
 
