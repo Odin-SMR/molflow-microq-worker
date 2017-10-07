@@ -24,4 +24,4 @@ mysqlhost:
     - MYSQL_USER=testuser
     - MYSQL_PASSWORD=secret
   ports:
-    - localhost:3306:3306
+    - 127.0.0.1:3306:3306
