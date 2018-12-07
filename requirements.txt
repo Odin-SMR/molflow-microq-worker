@@ -4,5 +4,9 @@
 #
 #    pip-compile --output-file requirements.txt requirements.in
 #
-ConcurrentLogHandler==0.9.1
-requests==2.11.1
+certifi==2018.11.29       # via requests
+chardet==3.0.4            # via requests
+concurrentloghandler==0.9.1
+idna==2.7                 # via requests
+requests==2.20.1
+urllib3==1.24.1           # via requests

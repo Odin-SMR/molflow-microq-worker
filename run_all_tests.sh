@@ -4,7 +4,7 @@
 # the build master template job.
 set -e
 
-virtualenv env
+virtualenv --python=python2 env
 export VIRTUAL_ENV="${PWD}/env"
 export PATH="${PWD}/env/bin:${PATH}"
 pip install -r test-requirements.txt
