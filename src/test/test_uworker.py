@@ -9,8 +9,7 @@ import pytest
 from werkzeug.serving import BaseWSGIServer, WSGIRequestHandler
 from werkzeug.wrappers import Request, Response
 
-from test.testbase import (
-    BaseWithWorkerUser, TEST_DATA_DIR, slow, system)
+from test.testbase import BaseWithWorkerUser, TEST_DATA_DIR
 
 from utils.defs import JOB_STATES
 from utils import logs
@@ -30,14 +29,15 @@ class BaseUWorkerTest(BaseWithWorkerUser):
         """Return dict with env variables that should be set"""
         raise NotImplementedError
 
-    def setUp(self):
+    @pytest.fixture(autouse=True)
+    def myfix(self, microq_service, myworker):
         for k, v in self.env.items():
+            assert v is not None, (k, v)
             os.environ[k] = v
         self._insert_test_jobs()
         self.orig_in_docker = in_docker
         docker_util.in_docker = lambda: self.in_docker
-
-    def tearDown(self):
+        yield
         docker_util.in_docker = self.orig_in_docker
         self._delete_test_project()
 
@@ -67,8 +67,7 @@ class BaseUWorkerTest(BaseWithWorkerUser):
         # TODO: Check that result and output from job were stored.
 
 
-@system
-@pytest.mark.usefixtures("dockercompose")
+@pytest.mark.system
 class TestUWorkerWithCommand(BaseUWorkerTest):
     """Test worker that is running with a command"""
 
@@ -113,8 +112,7 @@ class TestUWorkerWithCommand(BaseUWorkerTest):
         uworker.main(['https://example.com/test'])
 
 
-@system
-@pytest.mark.usefixtures("dockercompose")
+@pytest.mark.system
 class TestUWorkerNoCommand(BaseUWorkerTest):
     """Test worker that is running without a command"""
 
@@ -136,10 +134,10 @@ class TestUWorkerNoCommand(BaseUWorkerTest):
             'UWORKER_EXTERNAL_API_PASSWORD': 'test',
         }
 
-    def setUp(self):
-        super(TestUWorkerNoCommand, self).setUp()
+    @pytest.fixture(autouse=True)
+    def specialfix(self, myfix):
         r = requests.put(
-            BaseWithWorkerUser._apiroot + '/v4/' + BaseWithWorkerUser._project,
+            self._apiroot + '/v4/' + self._project,
             auth=self._auth, json={'processing_image_url': TEST_IMAGE})
         self.assertEqual(r.status_code, 204)
 
@@ -156,7 +154,7 @@ class TestUWorkerNoCommand(BaseUWorkerTest):
         error_job = {
             'id': '43', 'type': 'test_type',
             'source_url': 'ls test_exit_code',
-            'target_url': BaseUWorkerTest.TEST_URL}
+            'target_url': self.TEST_URL}
         self.assertEqual(self._insert_job(error_job), 201)
         self._run_once(expected_jobs_count=1, with_command=False)
         self._run_once(expected_jobs_count=1, with_command=False)
@@ -204,7 +202,7 @@ class TestCommandExecutor(BaseExecutorTest):
         self.assertTrue('Killed Test process' in self.callback.last_message)
 
 
-@slow
+@pytest.mark.slow
 class TestDockerExecutor(BaseExecutorTest):
 
     def test_image_pull(self):
@@ -250,8 +248,7 @@ class TestDockerExecutor(BaseExecutorTest):
         self.assertEqual(return_code, 1)
 
 
-@system
-@pytest.mark.usefixtures("dockercompose")
+@pytest.mark.system
 @unittest.skipIf(not in_docker(),
                  'Must be run in a qsmr container with a running uworker')
 class TestQsmrJob(BaseWithWorkerUser):
@@ -266,13 +263,11 @@ class TestQsmrJob(BaseWithWorkerUser):
     def odin_mock_root(self):
         return 'http://%s:%s' % (self.ODINMOCK_HOST, self.ODINMOCK_PORT)
 
-    def setUp(self):
-        super(TestQsmrJob, self).setUp()
+    @pytest.fixture(autouse=True)
+    def qsmrjob(self, myworker):
         self.odin_api = MockOdinAPI(self.ODINMOCK_HOST, self.ODINMOCK_PORT)
         self.odin_api.start()
-
-    def tearDown(self):
-        super(TestQsmrJob, self).tearDown()
+        yield
         requests.get(self.odin_mock_root + '?shutdown=1')
 
     def test_success(self):

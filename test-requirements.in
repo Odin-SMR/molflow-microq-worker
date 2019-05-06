@@ -1,4 +1,5 @@
 pytest
+pytest-docker
 requests
 coverage
 werkzeug

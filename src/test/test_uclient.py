@@ -2,11 +2,13 @@ import json
 import pytest
 
 from uclient.uclient import UClient, UClientError, Job
-from test.testbase import BaseWithWorkerUser, system
+from test.testbase import BaseWithWorkerUser
 
 
 class BaseTestUClient(BaseWithWorkerUser):
-    def setUp(self):
+
+    @pytest.fixture(autouse=True)
+    def client(self, myworker):
         super(BaseTestUClient, self).setUp()
         self._credentials = {"username": self._token,
                              "password": ''}
@@ -18,8 +20,7 @@ class BaseTestUClient(BaseWithWorkerUser):
                        time_between_retries=0.01, **credentials)
 
 
-@system
-@pytest.mark.usefixtures("dockercompose")
+@pytest.mark.system
 class TestErrors(BaseTestUClient):
 
     def test_bad_project_name(self):
@@ -38,17 +39,15 @@ class TestErrors(BaseTestUClient):
 
 class BaseTestWithInsertedJob(BaseTestUClient):
 
-    def setUp(self):
-        super(BaseTestWithInsertedJob, self).setUp()
+    @pytest.fixture(autouse=True)
+    def clientjobs(self, myworker):
         self._delete_test_project()
         self._insert_test_jobs()
-
-    def tearDown(self):
+        yield
         self._delete_test_project()
 
 
-@system
-@pytest.mark.usefixtures("dockercompose")
+@pytest.mark.system
 class TestCredentials(BaseTestWithInsertedJob):
 
     def test_credentials_from_file(self):
@@ -80,8 +79,7 @@ class TestCredentials(BaseTestWithInsertedJob):
             Job.fetch(api, job_type='test_type')
 
 
-@system
-@pytest.mark.usefixtures("dockercompose")
+@pytest.mark.system
 class TestJob(BaseTestWithInsertedJob):
 
     def test_job(self):

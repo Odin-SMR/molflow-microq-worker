@@ -1,9 +1,11 @@
-"""Unitttests"""
+import os
 
-from time import sleep, time
-from subprocess import check_output, Popen
 import requests
+from requests.exceptions import RequestException
 import pytest
+
+WAIT_FOR_SERVICE_TIME = 60 * 5
+PAUSE_TIME = 0.1
 
 
 def pytest_addoption(parser):
@@ -12,64 +14,48 @@ def pytest_addoption(parser):
         "--runslow", action="store_true", help="run slow tests")
     parser.addoption(
         "--runsystem", action="store_true", help="run system tests")
-    parser.addoption(
-        "--rundisabled", action="store_true", help="run disabled tests")
-    parser.addoption(
-        "--no-system-restart", action="store_true",
-        help="do not restart the system")
 
 
-def call_docker_compose(cmd, root_path, args=None, wait=True):
-    cmd = ['docker-compose', cmd] + (args or [])
-    popen = Popen(cmd, cwd=root_path)
-    if wait:
-        popen.wait()
-    return popen
+def pytest_collection_modifyitems(config, items):
+    if not config.getoption('--runslow'):
+        skip_slow = pytest.mark.skip(reason='need --runslow option to run')
+        for item in items:
+            if "slow" in item.keywords:
+                item.add_marker(skip_slow)
+    if not config.getoption('--runsystem'):
+        skip_system = pytest.mark.skip(reason='need --runsystem option to run')
+        for item in items:
+            if "system" in item.keywords:
+                item.add_marker(skip_system)
 
 
-@pytest.yield_fixture(scope='session')
-def dockercompose():
-    """Set up the full system"""
-    root_path = check_output(['git', 'rev-parse', '--show-toplevel']).strip()
+def is_responsive(baseurl):
+    try:
+        r = requests.get(
+            "{}/rest_api/v4/projects".format(baseurl),
+            timeout=5,
+        )
+        r.raise_for_status()
+    except RequestException:
+        return False
+    return True
 
-    if not pytest.config.getoption("--no-system-restart"):
-        call_docker_compose('stop', root_path)
-        call_docker_compose('rm', root_path, args=['--force'])
-        call_docker_compose('pull', root_path)
-        call_docker_compose('build', root_path)
 
-    args = ['--abort-on-container-exit', '--remove-orphans']
-    system = call_docker_compose('up', root_path, args=args, wait=False)
+@pytest.fixture(scope='session')
+def docker_compose_file(pytestconfig):
+    return os.path.join(
+        os.path.dirname(__file__),
+        'docker-compose.systemtest.yml',
+    )
 
-    # Wait for webapi and database
-    max_wait = 60*5
-    start_wait = time()
-    while True:
-        exit_code = system.poll()
-        if exit_code is not None:
-            call_docker_compose('stop', root_path)
-            assert False, 'docker-compose exit code {}'.format(exit_code)
-        try:
-            r = requests.get(
-                'http://localhost:5000/rest_api/v4/projects',
-                timeout=5)
-            if r.status_code == 200:
-                break
-            else:
-                sleep(1)
-        except requests.ConnectionError:
-            sleep(1)
-        if time() > start_wait + max_wait:
-            call_docker_compose('stop', root_path)
-            if system.poll() is None:
-                system.kill()
-                system.wait()
-            assert False, 'Could not access webapi after %d seconds' % max_wait
 
-    yield system.pid
-
-    if not pytest.config.getoption("--no-system-restart"):
-        call_docker_compose('stop', root_path)
-        if system.poll() is None:
-            system.kill()
-            system.wait()
+@pytest.fixture(scope='session')
+def microq_service(docker_ip, docker_services):
+    port = docker_services.port_for('webapi', 5000)
+    url = "http://localhost:{}".format(port)
+    docker_services.wait_until_responsive(
+        timeout=WAIT_FOR_SERVICE_TIME,
+        pause=PAUSE_TIME,
+        check=lambda: is_responsive(url),
+    )
+    return url

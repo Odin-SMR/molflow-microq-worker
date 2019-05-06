@@ -3,7 +3,7 @@ from datetime import timedelta
 
 def enum(**enums):
     assert 'all_values' not in enums
-    enums['all_values'] = set(value for value in enums.itervalues())
+    enums['all_values'] = set(value for value in enums.values())
     return type('Enum', (), enums)
 
 JOB_STATES = enum(

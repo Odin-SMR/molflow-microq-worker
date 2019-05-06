@@ -1,11 +1,8 @@
 """Dummy tests"""
 import pytest
 
-from test.testbase import system
 
-
-@system
-@pytest.mark.usefixtures("dockercompose")
-def test_abc_dummy():
+@pytest.mark.system
+def test_abc_dummy(microq_service):
     """Dummy test to start docker environment"""
     assert True
