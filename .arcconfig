@@ -1,4 +1,3 @@
 {
-  "phabricator.uri" : "https://phabricator.molflow.com",
-  "unit.engine" : "PytestTestEngine"
+  "phabricator.uri" : "https://phabricator.molflow.com"
 }

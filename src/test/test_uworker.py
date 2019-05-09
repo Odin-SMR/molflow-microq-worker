@@ -1,11 +1,11 @@
-import os
 import json
-from time import time, sleep
+import os
 import threading
+from time import time, sleep
 import unittest
 
-import requests
 import pytest
+import requests
 from werkzeug.serving import BaseWSGIServer, WSGIRequestHandler
 from werkzeug.wrappers import Request, Response
 
@@ -51,7 +51,7 @@ class BaseUWorkerTest(BaseWithWorkerUser):
             if k in optional:
                 uworker.UWorker(with_command=with_command)
             else:
-                print('Mandatory: %s' % k)
+                print('Mandatory: {}'.format(k))
                 with self.assertRaises(uworker.UWorkerError):
                     uworker.UWorker()
             os.environ[k] = v
@@ -166,7 +166,7 @@ class BaseExecutorTest(unittest.TestCase):
     def callback(msg):
         """Process stdout and stderr are sent to this function"""
         print(repr(msg))
-        BaseExecutorTest.callback.last_message = msg
+        BaseExecutorTest.callback.last_message = msg.decode('utf8')
 
     def setUp(self):
         self.log = logs.get_logger('unittest', to_file=False, to_stdout=True)
@@ -290,7 +290,7 @@ class TestQsmrJob(BaseWithWorkerUser):
                 break
             job_status = self._get_job_status()
         if self.odin_api.result:
-            print('Result: %r' % self.odin_api.result.keys())
+            print('Result: {}'.format(list(self.odin_api.result.keys())))
         else:
             print('No results!')
 
@@ -304,10 +304,10 @@ class TestQsmrJob(BaseWithWorkerUser):
                 break
             job_status = self._get_job_status()
 
-        print('Job status: %r' % job_status)
-        print('Job output: %r' % self._get_job_output())
-        print('Job results should have been written to %s' % os.path.join(
-            TEST_DATA_DIR, 'odin_result.json'))
+        print('Job status: {}'.format(job_status))
+        print('Job output: {}'.format(self._get_job_output()))
+        print('Job results should have been written to {}'.format(os.path.join(
+            TEST_DATA_DIR, 'odin_result.json')))
         if should_succeed:
             self.assertEqual(job_status, JOB_STATES.finished)
             self.assertTrue(self.odin_api.result)
@@ -377,7 +377,7 @@ class MockOdinAPI(threading.Thread):
             else:
                 response = Response(':(', 415)
         except Exception as e:
-            print('Mock odin excepted: %s' % e)
+            print('Mock odin excepted: {}'.format(e))
             raise
         return response(environ, start_response)
 

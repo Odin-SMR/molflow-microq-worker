@@ -1,4 +1,4 @@
-from subprocess import check_output
+from subprocess import check_output, CalledProcessError
 
 
 def in_docker():
@@ -12,5 +12,5 @@ def docker_available():
     try:
         check_output(['docker', 'info'])
         return True
-    except:
+    except CalledProcessError:
         return False

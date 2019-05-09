@@ -1,7 +1,9 @@
 import json
-import urllib
-from time import sleep
 import requests
+from time import sleep
+import urllib.request
+import urllib.parse
+import urllib.error
 
 from utils.logs import get_logger
 from utils.validate import validate_project_name
@@ -17,7 +19,7 @@ class UClientError(Exception):
         super(UClientError, self).__init__(msg)
 
 
-class UClient(object):
+class UClient:
     """API to the micro service
 
     The client is mostly adapted to suit the needs of uworker.
@@ -78,7 +80,7 @@ class UClient(object):
         with open(filename) as fp:
             credentials = json.load(fp)
         if self.verbose:
-            print("loaded credentials from '{0}'".format(filename))
+            print("loaded credentials from '{}'".format(filename))
         return credentials
 
     def _get_credentials(self, username, password, credentials_file):
@@ -106,7 +108,7 @@ class UClient(object):
         else:
             url = self.uri + '/v4/projects/jobs/fetch'
         if job_type:
-            url += '?{}'.format(urllib.urlencode({'type': job_type}))
+            url += '?{}'.format(urllib.parse.urlencode({'type': job_type}))
         try:
             return self._call_api(url)
         except UClientError as err:
@@ -144,7 +146,8 @@ class UClient(object):
         """
         if auth is None:
             auth = self.auth
-        response = err = None
+        response = None
+        error = None
         is_retry = False
         retries = self.retries
 
@@ -162,9 +165,10 @@ class UClient(object):
                     "Request to {0} raised {3} (attempt {1}/{2})".format(
                         url, attempt + 1, retries + 1, err))
                 is_retry = True
+                error = err
 
         if response is None:
-            raise UClientError('API call to %r failed: %s' % (url, err))
+            raise UClientError('API call to {} failed: {}'.format(url, error))
         if self.verbose:
             print(response.text)
         if renew_token and response.status_code == 401:
@@ -184,7 +188,7 @@ class UClient(object):
         return (self.token, '')
 
 
-class Job(object):
+class Job:
 
     def __init__(self, data, api):
         """Init a job.
@@ -239,13 +243,9 @@ class Job(object):
         return self.data["Job"]["Environment"]
 
     def claim(self, worker='anonymous'):
-        if self.claimed:
-            return
-        try:
+        if not self.claimed:
             self.api.claim_job(self.url_claim, worker)
             self.claimed = True
-        except UClientError:
-            raise
 
     def send_status(self, status, processing_time=None):
         self.api.update_status(

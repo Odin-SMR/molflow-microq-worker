@@ -28,22 +28,22 @@ prioritize the projects). The worker pulls the image and processes the job by
 running a docker container.
 """
 
-import os
-import errno
-import sys
-import socket
-import signal
-import subprocess
 import argparse
-from io import BytesIO
-from time import sleep, time
 from datetime import datetime
+import errno
+from io import BytesIO
+import os
+import signal
+import socket
+import subprocess
+import sys
+from time import sleep, time
 from threading import Thread, Lock
 
 from uclient.uclient import UClient, UClientError, Job
 from utils import docker_util
-from utils.logs import get_logger
 from utils.defs import JOB_STATES
+from utils.logs import get_logger
 
 GENERAL_CONFIG = {
     'api_root': ('UWORKER_JOB_API_ROOT', True),
@@ -79,7 +79,7 @@ class UWorkerError(Exception):
     pass
 
 
-class UWorker(object):
+class UWorker:
     """
     Worker flow
     -----------
@@ -187,7 +187,7 @@ class UWorker(object):
                 sleep(self.ERROR_SLEEP)
         self.running = False
 
-    def stop(self, signal, frame):
+    def stop(self, mysignal, frame):
         # TODO: Should kill job command and unclaim current job
         self.alive = False
 
@@ -239,7 +239,7 @@ class ExecutorError(Exception):
     pass
 
 
-class CommandExecutor(object):
+class CommandExecutor:
     """Class for execution of commands.
 
     Example usage:
@@ -250,7 +250,7 @@ class CommandExecutor(object):
     >>> c.execute(['packed.tar.gz', '/pack/this/dir'], callback_function)
     """
     def __init__(self, name, cmd, log):
-        if isinstance(cmd, basestring):
+        if isinstance(cmd, str):
             cmd = cmd.split()
         self.cmd = cmd
         self.process_name = name
@@ -387,8 +387,13 @@ class CommandExecutor(object):
         self._write_output('executor', msg + '\n')
 
     def _write_output(self, stream_name, msg):
-        self.output.write('%s - %s: %s' % (
-            datetime.utcnow().isoformat(), stream_name.upper(), msg))
+        self.output.write(
+            '{} - {}: {}'.format(
+                datetime.utcnow().isoformat(),
+                stream_name.upper(),
+                msg
+            ).encode(),
+        )
 
 
 class DockerExecutor(CommandExecutor):
@@ -406,12 +411,17 @@ class DockerExecutor(CommandExecutor):
     The image is pulled from the registyr if it does not exist on the host.
     """
 
-    def __init__(self, name, image_url, log, auto_remove=True,
-                 environment=None, network='host'):
-        environment = environment or {}
+    def __init__(
+        self, name, image_url, log, auto_remove=True, environment=None,
+        network='host'
+    ):
+        if environment is None:
+            environment = {}
         self.image_url = image_url
         env = sum(
-            [['-e', '"%s=%s"' % (k, v)] for k, v in environment.items()], [])
+            [['-e', '"{}={}"'.format(k, v)] for k, v in environment.items()],
+            [],
+        )
 
         cmd = ['docker', 'run', '-i']
         if auto_remove:
@@ -441,7 +451,7 @@ class DockerExecutor(CommandExecutor):
             'Image exists', ['docker', 'images', '-q'], self.log)
 
         def output_callback(message):
-            if 'EXECUTOR' in message:
+            if 'EXECUTOR' in message.decode('utf8'):
                 return
             output_callback.exists = bool(message)
         output_callback.exists = False

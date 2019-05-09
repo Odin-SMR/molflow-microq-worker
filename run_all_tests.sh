@@ -4,4 +4,4 @@
 # the build master template job.
 set -e
 
-tox -- "$@"
+tox -- --runslow --runsystem

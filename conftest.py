@@ -31,11 +31,11 @@ def pytest_collection_modifyitems(config, items):
 
 def is_responsive(baseurl):
     try:
-        r = requests.get(
+        response = requests.get(
             "{}/rest_api/v4/projects".format(baseurl),
             timeout=5,
         )
-        r.raise_for_status()
+        response.raise_for_status()
     except RequestException:
         return False
     return True
