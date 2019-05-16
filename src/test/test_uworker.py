@@ -49,7 +49,9 @@ class BaseUWorkerTest(BaseWithWorkerUser):
         for k in self.env:
             v = os.environ.pop(k)
             if k in optional:
-                uworker.UWorker(with_command=with_command)
+                uworker.UWorker(
+                    with_command=with_command, idle_sleep=1, error_sleep=2,
+                )
             else:
                 print('Mandatory: {}'.format(k))
                 with self.assertRaises(uworker.UWorkerError):
@@ -57,9 +59,9 @@ class BaseUWorkerTest(BaseWithWorkerUser):
             os.environ[k] = v
 
     def _run_once(self, expected_jobs_count=0, with_command=True):
-        uworker.UWorker.IDLE_SLEEP = .01
-        uworker.UWorker.ERROR_SLEEP = .01
-        w = uworker.UWorker(with_command=with_command)
+        w = uworker.UWorker(
+            with_command=with_command, idle_sleep=0.01, error_sleep=0.01,
+        )
         w.alive = True
         self.assertEqual(w.job_count, 0)
         w.run(only_once=True)
@@ -165,8 +167,7 @@ class BaseExecutorTest(unittest.TestCase):
     @staticmethod
     def callback(msg):
         """Process stdout and stderr are sent to this function"""
-        print(repr(msg))
-        BaseExecutorTest.callback.last_message = msg.decode('utf8')
+        BaseExecutorTest.callback.last_message = msg
 
     def setUp(self):
         self.log = logs.get_logger('unittest', to_file=False, to_stdout=True)
@@ -179,8 +180,6 @@ class TestCommandExecutor(BaseExecutorTest):
         ce = uworker.CommandExecutor('Test', ['echo'], self.log)
         return_code, _ = ce.execute(['test_execute_success'],
                                     self.callback)
-        # The callback is in thread, need time to complete
-        sleep(1)
         self.assertEqual(return_code, 0)
         self.assertTrue('test_execute_success' in self.callback.last_message)
 
@@ -196,8 +195,6 @@ class TestCommandExecutor(BaseExecutorTest):
         ce = uworker.CommandExecutor('Test', ['sleep'], self.log)
         return_code, _ = ce.execute(['5'],
                                     self.callback, timeout=1, kill_after=1)
-        # The callback is in thread, need time to complete
-        sleep(1)
         self.assertNotEqual(return_code, 0)
         self.assertTrue('Killed Test process' in self.callback.last_message)
 
@@ -212,8 +209,6 @@ class TestDockerExecutor(BaseExecutorTest):
             ce = uworker.CommandExecutor('Remove image', ['docker', 'rmi'],
                                          self.log)
             ce.execute([TEST_IMAGE], self.callback)
-        # The callback is in thread, need time to complete
-        sleep(1)
         self.assertFalse(de.image_exists())
         de.pull_image(self.callback)
         self.assertTrue(de.image_exists())
@@ -223,8 +218,6 @@ class TestDockerExecutor(BaseExecutorTest):
         de = uworker.DockerExecutor('Test', TEST_IMAGE, self.log)
         return_code, _ = de.execute(['echo', 'test_execute_success'],
                                     self.callback)
-        # The callback is in thread, need time to complete
-        sleep(1)
         self.assertEqual(return_code, 0)
         self.assertTrue('test_execute_success' in self.callback.last_message)
 
@@ -234,8 +227,6 @@ class TestDockerExecutor(BaseExecutorTest):
             'Test', TEST_IMAGE, self.log,
             environment={'TESTENV': 'test_environment_variables'})
         return_code, _ = de.execute(['env'], self.callback)
-        # The callback is in thread, need time to complete
-        sleep(1)
         self.assertEqual(return_code, 0)
         self.assertTrue(
             'test_environment_variables' in self.callback.last_message)

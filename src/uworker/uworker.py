@@ -33,6 +33,7 @@ from datetime import datetime
 import errno
 from io import BytesIO
 import os
+import re
 import signal
 import socket
 import subprocess
@@ -106,12 +107,11 @@ class UWorker:
     by the target api. The worker can then set the status of the job to
     failed or finished by looking at the exit code of the command.
     """
-    # Sleep this many seconds when no jobs are available
-    IDLE_SLEEP = 1
-    # Sleep this many seconds if something unexpected goes wrong
-    ERROR_SLEEP = 10
 
-    def __init__(self, start_service=False, with_command=True):
+    def __init__(
+        self, start_service=False, with_command=True, idle_sleep=600,
+        error_sleep=30,
+    ):
         if not with_command:
             if docker_util.in_docker():
                 raise UWorkerError(
@@ -123,6 +123,12 @@ class UWorker:
             config = get_config(with_command)
         except KeyError as e:
             raise UWorkerError('Missing config value: %s' % e)
+
+        # Sleep this many seconds when no jobs are available
+        self.idle_sleep = idle_sleep
+        # Sleep this many seconds if something unexpected goes wrong
+        self.error_sleep = error_sleep
+
         self.name = '{class_name}_{host}'.format(
             class_name=self.__class__.__name__,
             host=socket.gethostname())
@@ -166,12 +172,12 @@ class UWorker:
                     self.api, job_type=self.job_type, project=self.project)
                 if not job:
                     self.log.info('Idle...')
-                    sleep(self.IDLE_SLEEP)
+                    sleep(self.idle_sleep)
                 elif job.url_image and self.cmd:
                     self.log.warning(
                         'Got job with docker image (%r) but the worker is '
                         'configured with a command!' % job.url_image)
-                    sleep(self.IDLE_SLEEP)
+                    sleep(self.idle_sleep)
                 elif self.claim_job(job):
                     job.send_status(JOB_STATES.started)
                     exit_code, processing_time = self.do_job(
@@ -184,7 +190,7 @@ class UWorker:
                     self.job_count += 1
             except Exception as e:
                 self.log.exception('Unhandled exception: %s' % e)
-                sleep(self.ERROR_SLEEP)
+                sleep(self.error_sleep)
         self.running = False
 
     def stop(self, mysignal, frame):
@@ -200,7 +206,7 @@ class UWorker:
                 if e.status_code == 409:
                     return False
                 self.log.error('Failed job claim: %s' % e)
-                sleep(self.ERROR_SLEEP)
+                sleep(self.error_sleep)
         return False
 
     def do_job(self, url_source, url_target=None, url_output=None,
@@ -249,6 +255,9 @@ class CommandExecutor:
     >>> c = CommandExecutor('Pack dir', 'tar -zcvf', log)
     >>> c.execute(['packed.tar.gz', '/pack/this/dir'], callback_function)
     """
+
+    READLINES_IDLE_SLEEP = 5.
+
     def __init__(self, name, cmd, log):
         if isinstance(cmd, str):
             cmd = cmd.split()
@@ -280,14 +289,14 @@ class CommandExecutor:
             cmd = ['timeout', '--kill-after=%d' % kill_after,
                    str(int(timeout))] + cmd
         start_time = time()
-        popen = subprocess.Popen(
+        proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             universal_newlines=True)
         self.log.info('{} process started with pid {}: {}'.format(
-            self.process_name, popen.pid, cmd))
+            self.process_name, proc.pid, cmd))
 
-        self._handle_output(popen, output_callback)
-        exit_code, killed = self._wait_for_exit(popen)
+        threads = self._handle_output(proc, output_callback)
+        exit_code, killed = self._wait_for_exit(proc, threads)
         processing_time = time() - start_time
 
         if timeout and killed:
@@ -299,70 +308,68 @@ class CommandExecutor:
         msg = '{} process exited with code {}'.format(
             self.process_name, exit_code)
         self.write_output(msg)
-        output_callback(self.output.getvalue())
+        output_callback(self.output.getvalue().decode())
         if exit_code != 0:
             self.log.warning(msg)
         else:
             self.log.info(msg)
         return exit_code, processing_time
 
-    def _handle_output(self, popen, out_callback):
+    def _handle_output(self, proc, out_callback):
         """Start threads that feed the stdout/stderr streams from the
         subprocess to the callback function.
         """
-        stdout_lines = iter(popen.stdout.readline, "")
-        stderr_lines = iter(popen.stderr.readline, "")
-
         t_stdout = Thread(target=self._read_lines, args=(
-            'stdout', stdout_lines, out_callback))
+            'stdout', proc.stdout, out_callback))
         t_stderr = Thread(target=self._read_lines, args=(
-            'stderr', stderr_lines, out_callback))
+            'stderr', proc.stderr, out_callback))
         t_stdout.start()
         t_stderr.start()
         return t_stdout, t_stderr
 
-    def _read_lines(self, stream_name, lines, out_callback):
+    def _read_lines(self, stream_name, proc_buffer, out_callback):
         """Read stream from subprocess and feed to log and callback function"""
-        last_callback = 0
-        callback_interval = 5
-        for line in lines:
+        callback_interval = 60.
+        last_callback = time() - callback_interval * 9. / 10.
+        prev_output = None
+        for line in iter(proc_buffer.readline, ""):
             with self.output_lock:
                 self._write_output(stream_name, line)
                 if time() - last_callback > callback_interval:
-                    out_callback(self.output.getvalue())
+                    output = self.output.getvalue().decode()
+                    if output != prev_output:
+                        out_callback(output)
+                    prev_output = output
                     last_callback = time()
             if line.strip():
                 self.log.info(
                     '{process_name} process {stream}: {message}'.format(
                         process_name=self.process_name, stream=stream_name,
                         message=line.strip()))
+            else:
+                sleep(self.READLINES_IDLE_SLEEP)
+        proc_buffer.close()
 
-    def _wait_for_exit(self, popen):
+    def _wait_for_exit(self, proc, threads):
         """Wait for the subprocess to exit.
 
         Args:
-          popen (Popen): The subprocess object.
+          proc: The subprocess object.
         Return:
           (int, bool): Subprocess exit code, True if killed because of timeout.
         """
-        exit_code = popen.poll()
+        exit_code = proc.poll()
         while exit_code is None:
             sleep(1)
-            exit_code = popen.poll()
+            exit_code = proc.poll()
 
         killed = exit_code in (124, 128+9)
 
         if docker_util.in_docker():
-            self._reap_children(popen.pid)
+            self._reap_children(proc.pid)
 
-        for stream_name, stream in (('stdout', popen.stdout),
-                                    ('stderr', popen.stderr)):
-            try:
-                stream.close()
-            except Exception as e:
-                self.log.warning(
-                    'Could not close command stream {}: <{}> {}'.format(
-                        stream_name, e.__class__.__name__, e))
+        for thread in threads:
+            thread.join()
 
         return exit_code, killed
 
@@ -450,10 +457,17 @@ class DockerExecutor(CommandExecutor):
         executor = CommandExecutor(
             'Image exists', ['docker', 'images', '-q'], self.log)
 
+        executorline = re.compile(
+            r'\d{4}-\d{1,2}-\d{1,2}T\d{1,2}:\d{1,2}:[\d.]* - EXECUTOR'
+        )
+
         def output_callback(message):
-            if 'EXECUTOR' in message.decode('utf8'):
-                return
-            output_callback.exists = bool(message)
+            match = executorline.search(message)
+            if match:
+                dockeroutput = message[: match.start()].strip()
+            else:
+                dockeroutput = message.strip()
+            output_callback.exists = bool(dockeroutput)
         output_callback.exists = False
 
         code, _ = executor.execute([self.image_url], output_callback)
