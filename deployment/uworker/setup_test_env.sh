@@ -44,7 +44,7 @@ fix_uworker_conf() {
 }
 
 fix_uworker_start_script() {
-    sed -i -e "s/uworker/python /app/uworker/uworker.py/" /root/start_worker.sh
+    sed -i -e "s/uworker/python3 /app/uworker/uworker.py/" /root/start_worker.sh
 }
 
 main() {

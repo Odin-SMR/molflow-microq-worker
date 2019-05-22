@@ -2,25 +2,27 @@
 
 set -e
 
+# Purge old if exists
+sudo apt-get purge -y docker docker-engine docker.io containerd runc
 # Ensure that APT works with the https method, and that CA certificates
 # are installed.
-sudo apt-get install -y -qq apt-transport-https ca-certificates
+sudo apt-get update
+sudo apt-get install -y -qq apt-transport-https ca-certificates curl gnupg-agent software-properties-common
 
 # Add new GPG key
-sudo apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
 
 # Update apt sources
-echo deb https://apt.dockerproject.org/repo ubuntu-xenial main | sudo tee /etc/apt/sources.list.d/docker.list
+sudo add-apt-repository \
+   "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+   $(lsb_release -cs) \
+   stable"
 sudo apt-get update -qq -y
 
-# Purge old if exists
-sudo apt-get purge -y lxc-docker
 
-# linux extra allows us to use the aufs storage driver
-sudo apt-get install -y -qq linux-image-extra-$(uname -r) linux-image-extra-virtual
+# Install docker-ce
+sudo apt-get install -y -qq docker-ce docker-ce-cli containerd.io
 
-# Install docker engine
-sudo apt-get install -y -qq docker-engine
-sudo systemctl enable docker
-
-sudo apt-get install -y -qq docker-compose
+# Install docker-compose
+sudo curl -L "https://github.com/docker/compose/releases/download/1.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose

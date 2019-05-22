@@ -2,17 +2,17 @@
 
 set -e
 
-sudo apt-get install -y -qq python-dev python-pip --no-install-recommends
+sudo apt-get install -y -qq python3-dev python3-pip --no-install-recommends
 
-sudo pip install --upgrade pip
-sudo pip install setuptools
+sudo pip3 install --upgrade pip
+sudo pip3 install setuptools
 
 tar xf /tmp/microq.tar.gz
 rm /tmp/microq.tar.gz
 sudo mv src /app
 
 # TODO: Install in virtual env
-sudo pip install -r /tmp/uworker-requirements.txt
+sudo pip3 install -r /tmp/uworker-requirements.txt
 
 # TODO: Do not run as root
 sudo mv /tmp/start_worker.sh /root/start_worker.sh

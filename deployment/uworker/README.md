@@ -5,12 +5,11 @@
 
 The images are built with packer: https://www.packer.io/
 
-The installation of packer is very simple, it is distributed as a binary
-package.
+We include a version of packer that wokrs well with SNIC and this one
+will be called from the `build_uworker_image.sh` script.
 
-https://www.packer.io/docs/installation.html
-
-Tested with version `0.10.2`.
+The local build described below will run the `packer` in your path as it
+requires versions of packer and virtualbox to be compatible.
 
 ## Config files
 
@@ -33,8 +32,10 @@ Put these config variables in a file:
     export UWORKER_JOB_API_USERNAME=<uservice username>
     export UWORKER_JOB_API_PASSWORD=<uservice password>
     export UWORKER_REGISTRY_URL=https://example.com/docker/registry
+    export UWORKER_REGISTRY2_URL=molflow/u-jobs
     export UWORKER_REGISTRY_USERNAME=<docker registry username>
     export UWORKER_REGISTRY_PASSWORD=<docker registry password>
+    export UWORKER_REGISTRY2_PASSWORD=<docker registry password>
 
 ### Packer config
 
@@ -76,7 +77,7 @@ but somtetimes several hours.
 
 ## Development of packer build scripts
 
-Validate the packer template (`xenial.json`):
+Validate the packer template (`bionic.json`):
 
     ./build_uworker_image.sh validate
 
@@ -91,6 +92,9 @@ a new instance every time.
 ## Development of uworker
 
 Build virtualbox image for running the worker in a vm on your machine:
+At the moment this pipeline is somewhat broken so you may have to manually
+select the install options, the imporant bits are that username and password
+must be `molflow` and that OpenSSH Server must be installed.
 
     ./build_uworker_image.sh local
 
@@ -113,7 +117,7 @@ Install plugins:
 
 Run these commands in the same directory as the build script:
 
-    vagrant box add packer_virtualbox-iso_virtualbox.box --name molflow/uworker-xenial
+    vagrant box add packer_virtualbox-iso_virtualbox.box --name molflow/uworker-bionic
     vagrant up
 
 Now you should have a virtualbox vm running with the src directory of this repo
