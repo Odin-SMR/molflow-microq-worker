@@ -50,7 +50,10 @@ class BaseUWorkerTest(BaseWithWorkerUser):
             v = os.environ.pop(k)
             if k in optional:
                 uworker.UWorker(
-                    with_command=with_command, idle_sleep=1, error_sleep=2,
+                    with_command=with_command,
+                    idle_sleep=1,
+                    error_sleep=2,
+                    retries=3
                 )
             else:
                 print('Mandatory: {}'.format(k))
@@ -60,7 +63,10 @@ class BaseUWorkerTest(BaseWithWorkerUser):
 
     def _run_once(self, expected_jobs_count=0, with_command=True):
         w = uworker.UWorker(
-            with_command=with_command, idle_sleep=0.01, error_sleep=0.01,
+            with_command=with_command,
+            idle_sleep=0.01,
+            error_sleep=0.01,
+            retries=3
         )
         w.alive = True
         self.assertEqual(w.job_count, 0)

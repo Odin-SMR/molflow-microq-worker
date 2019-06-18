@@ -16,7 +16,7 @@ class BaseTestUClient(BaseWithWorkerUser):
     def get_client(self, credentials=None):
         credentials = (credentials if credentials is not None
                        else self._credentials)
-        return UClient(self._apiroot, verbose=True,
+        return UClient(self._apiroot, verbose=True, retries=3,
                        time_between_retries=0.01, **credentials)
 
 

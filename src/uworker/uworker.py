@@ -110,7 +110,7 @@ class UWorker:
 
     def __init__(
         self, start_service=False, with_command=True, idle_sleep=600,
-        error_sleep=30,
+        error_sleep=30, retries=200
     ):
         if not with_command:
             if docker_util.in_docker():
@@ -148,7 +148,8 @@ class UWorker:
 
         self.api = UClient(config['api_root'],
                            username=config['api_username'],
-                           password=config['api_password'])
+                           password=config['api_password'],
+                           retries=retries)
         self.external_auth = (config['external_username'],
                               config['external_password'])
         if start_service:

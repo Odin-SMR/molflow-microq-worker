@@ -27,7 +27,7 @@ class UClient:
     logger = get_logger("UClient", to_file=False, to_stdout=True)
 
     def __init__(self, apiroot, username=None, password=None,
-                 credentials_file=None, verbose=False, retries=5,
+                 credentials_file=None, verbose=False, retries=200,
                  time_between_retries=None):
         """
         Init the api client.
@@ -53,7 +53,8 @@ class UClient:
         self.token = None
         self.retries = retries
         if time_between_retries is None:
-            self.time_between_retries = [pow(3, v) for v in range(retries)]
+            self.time_between_retries = [
+                min(pow(3, v), 300) for v in range(retries)]
         else:
             self.time_between_retries = [time_between_retries] * retries
 
