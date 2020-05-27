@@ -1,12 +1,5 @@
-#postgresql:
-#  image: docker2.molflow.com/odin_redo/odin_db:latest
-#  ports:
-#    - 5432:5432
-#  environment:
-#    - POSTGRES_PASSWORD:test
-
 webapi:
-  image: docker2.molflow.com/odin/microq:latest
+  image: odinsmr/microq:latest
   ports:
     - 5000:5000
   environment:
