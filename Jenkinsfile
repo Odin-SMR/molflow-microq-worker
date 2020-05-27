@@ -5,10 +5,17 @@ node {
     }
     stage('Build') {
         sh "docker build -t docker2.molflow.com/devops/uworker ."
+        uworkerImage = docker.build("odinsmr/uworker")
     }
-    stage("Push") {
-        if (env.GIT_BRANCH == 'origin/master') {
-            sh "docker push docker2.molflow.com/devops/uworker"
+    stage('Cleanup') {
+        sh "rm -r .tox"
+    }
+    if (env.BRANCH_NAME == 'master') {
+        stage('push') {
+          withDockerRegistry([ credentialsId: "dockerhub-molflowbot", url: "" ]) {
+             uworkerImage.push(env.BUILD_TAG)
+             uworkerImage.push('latest')
+          }
         }
     }
 }
