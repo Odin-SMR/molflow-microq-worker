@@ -1,5 +1,5 @@
 webapi:
-  image: docker2.molflow.com/odin/microq:latest
+  image: odinsmr/microq:latest
   ports: ["5000"]
   environment:
     - USERVICE_DATABASE_URI=mysql+pymysql://testuser:secret@mysqlhost/smr
@@ -9,7 +9,7 @@ webapi:
     - mysqlhost
 
 mysqlhost:
-  image: docker2.molflow.com/devops/hermod_mysql
+  image: odinsmr/hermod_mysql
   environment:
     - MYSQL_ROOT_PASSWORD=empty
     - MYSQL_DATABASE=smr
