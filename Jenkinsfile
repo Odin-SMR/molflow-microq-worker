@@ -1,5 +1,8 @@
 node {
-    checkout scm
+    def uworkerImage
+    stage('Git') {
+        checkout scm
+    }
     stage('Test') {
         sh "tox -- --runslow --runsystem"
     }
