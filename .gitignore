@@ -13,7 +13,8 @@ deployment/uworker/packer_cache/
 deployment/uworker/packer_virtualbox-iso_virtualbox.box
 deployment/uworker/.vagrant/
 deployment/uworker/microq.tar.gz
-deployment/uworker/worker_config.txt
+deployment/uworker/uworker.conf
+deployment/uworker/openrc.sh
 deployment/uworker/output-vagrant
 deployment/uworker/uworker-bionic
 result.xml
