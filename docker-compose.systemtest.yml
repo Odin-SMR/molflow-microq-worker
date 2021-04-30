@@ -9,7 +9,7 @@ webapi:
     - mysqlhost
 
 mysqlhost:
-  image: docker2.molflow.com/devops/hermod_mysql
+  image: mysql:5
   environment:
     - MYSQL_ROOT_PASSWORD=empty
     - MYSQL_DATABASE=smr
