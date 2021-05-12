@@ -13,9 +13,12 @@ requires versions of packer and virtualbox to be compatible.
 
 ## Config files
 
-There are two config files that must be provided. The openstack config
-`c2016005-openrc.sh` is hard coded for now and was fetched from the smog
-dashboard:
+
+There are three config files that must be provided.
+
+### Access to openstackcluser
+The openstack config `openrc.sh` is hard coded for now and was fetched
+from the smog dashboard:
 
     Access & security >> API Access >> Download OpenStack RC File
 
@@ -24,18 +27,15 @@ dashboard:
 The worker needs to know the job service root url and credentials.
 The job service users can be created by the job service admin user,
 see README.md in the root of this repository.
-The worker must also have access to a docker registry.
+The worker must also have access to a dockerhub.
 
 Put these config variables in a file:
 
     export UWORKER_JOB_API_ROOT=http://example.com/uservice/api/root
     export UWORKER_JOB_API_USERNAME=<uservice username>
     export UWORKER_JOB_API_PASSWORD=<uservice password>
-    export UWORKER_REGISTRY_URL=https://example.com/docker/registry
-    export UWORKER_REGISTRY2_URL=molflow/u-jobs
-    export UWORKER_REGISTRY_USERNAME=<docker registry username>
-    export UWORKER_REGISTRY_PASSWORD=<docker registry password>
-    export UWORKER_REGISTRY2_PASSWORD=<docker registry password>
+    export DOCKERHUB_USERNAME=<username>
+    export DOCKERHUB_TOKEN=<token>
 
 ### Packer config
 
@@ -46,6 +46,8 @@ Required config variables:
 
 * `openstack_free_floating_ip`: An available floating ip.
 * `uworker_config_file`: Path to the worker config file.
+* `openstack_source_image_id`: id of source image (hash)
+* `openstack_network_id`: id of network (hash)
 
 When developing the provisioning scripts a test host can be used
 (more info [below](#development)):
@@ -59,6 +61,8 @@ Example contents of `variables.json`:
         "openstack_free_floating_ip": "130.238.29.214",
         "uworker_config_file": "/path/to/uworker.conf",
         "test_host": "130.238.29.14",
+        "openstack_source_image_id": "380b438b-f5d4-4afb-9d5f-a0fe972d60cb",
+        "openstack_network_id": "de633b10-2242-4ff8-b442-f79b2cb66243",
         "test_ssh_key": "/home/<username>/.ssh/cloud.key"
     }
 

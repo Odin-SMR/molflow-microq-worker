@@ -15,9 +15,9 @@
             "type": "openstack",
             "ssh_username": "ubuntu",
             "image_name": "uworker_openstack_ubuntu18.04",
-            "source_image": "14734488-98fb-4f72-ba81-3a5ea99a3613",
+            "source_image": "{{user `openstack_source_image_id`}}",
             "flavor": "ssc.small",
-            "networks": ["235858ab-618b-4fd2-9a5c-2ec136292697"],
+            "networks": ["{{user `openstack_network_id`}}"],
             "floating_ip": "{{user `openstack_free_floating_ip`}}",
             "security_groups": ["default"]
         },

@@ -3,7 +3,7 @@
 set -e
 
 if [[ -z $OS_PASSWORD ]]; then
-    source 'SNIC 2018_10-51-openrc.sh'
+    source 'openrc.sh'
     source 'packer_openstack_v3.sh'
 fi
 tar -zcvf microq.tar.gz ../../src
